@@ -167,13 +167,13 @@ class Statistician(nn.Module):
         vlb = recon_loss - kl
         loss = - ((weight * recon_loss) - (kl / weight))
 
-        return loss, vlb
+        return loss, vlb, recon_loss, kl
 
     def step(self, inputs, alpha, optimizer, clip_gradients=True):
         assert self.training is True
 
         outputs = self.forward(inputs)
-        loss, vlb = self.loss(outputs, weight=(alpha + 1))
+        loss, vlb, recon_loss, kl = self.loss(outputs, weight=(alpha + 1))
 
         # perform gradient update
         optimizer.zero_grad()
@@ -185,7 +185,7 @@ class Statistician(nn.Module):
         optimizer.step()
 
         # output variational lower bound
-        return vlb.item()
+        return vlb.item(), recon_loss.item(), kl.item()
 
     def save(self, optimizer, save_path):
         torch.save({

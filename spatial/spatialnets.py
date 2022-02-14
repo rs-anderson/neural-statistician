@@ -220,8 +220,6 @@ class InferenceNetwork(nn.Module):
         ec = ec.view(self.batch_size, 1, self.hidden_dim).expand_as(ex)
 
 
-        # import ipdb; ipdb.set_trace()
-
         # sum and reshape
         e = ex + ez + ec
 

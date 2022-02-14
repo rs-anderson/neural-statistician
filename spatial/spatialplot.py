@@ -1,4 +1,5 @@
 from matplotlib import pyplot as plt
+from typing import Dict, List
 
 
 def grid(inputs, samples, summaries=None, save_path=None, ncols=10):
@@ -29,3 +30,13 @@ def grid(inputs, samples, summaries=None, save_path=None, ncols=10):
 
     if save_path is not None:
         fig.savefig(save_path)
+
+
+def plot_loss(save_path, **kwarg_losses: Dict[str, List[float]]):
+    plt.figure()
+    for loss_name, loss in kwarg_losses.items():
+        plt.plot(loss, label=loss_name, linestyle='-*')
+    plt.xlabel('Epochs')
+    plt.ylabel('Loss')
+    plt.legend()
+    plt.savefig(save_path)
