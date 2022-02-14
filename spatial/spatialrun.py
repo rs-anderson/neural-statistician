@@ -1,6 +1,7 @@
 import argparse
 import os
 import time
+import torch
 
 from spatialdata import SpatialMNISTDataset
 from spatialmodel import Statistician
@@ -64,6 +65,9 @@ os.makedirs(os.path.join(args.output_dir, 'figures'), exist_ok=True)
 # experiment start time
 time_stamp = time.strftime("%d-%m-%Y-%H:%M:%S")
 
+print("Running on CPU")
+device = torch.device('cpu')
+
 
 def run(model, optimizer, loaders, datasets):
     train_dataset, test_dataset = datasets
@@ -84,7 +88,7 @@ def run(model, optimizer, loaders, datasets):
         model.train()
         running_vlb = 0
         for batch in train_loader:
-            inputs = Variable(batch[0].cuda())
+            inputs = Variable(batch[0].to(device))
             vlb = model.step(inputs, alpha, optimizer, clip_gradients=args.clip_gradients)
             running_vlb += vlb
 
@@ -98,7 +102,7 @@ def run(model, optimizer, loaders, datasets):
         # show samples conditioned on test batch at intervals
         model.eval()
         if (epoch + 1) % viz_interval == 0:
-            inputs = Variable(test_batch[0].cuda(), volatile=True)
+            inputs = Variable(test_batch[0].to(device), volatile=True)
             samples = model.sample_conditioned(inputs)
             filename = time_stamp + '-{}.png'.format(epoch + 1)
             save_path = os.path.join(args.output_dir, 'figures/' + filename)
@@ -114,7 +118,7 @@ def run(model, optimizer, loaders, datasets):
     model.eval()
     # summarize test batch at end of training
     n = 10  # number of datasets to summarize
-    inputs = Variable(test_batch[0].cuda(), volatile=True)
+    inputs = Variable(test_batch[0].to(device), volatile=True)
     print("Summarizing...")
     summaries = model.summarize_batch(inputs[:n], output_size=6)
     print("Summary complete!")
@@ -156,7 +160,7 @@ def main():
         'print_vars': args.print_vars
     }
     model = Statistician(**model_kwargs)
-    model.cuda()
+    model.to(device)
     optimizer = optim.Adam(model.parameters(), lr=args.learning_rate)
 
     run(model, optimizer, loaders, datasets)

@@ -19,6 +19,8 @@ except ModuleNotFoundError:
                        gaussian_log_likelihood)
 
 
+device = torch.device('cpu')
+
 # Model
 class Statistician(nn.Module):
     def __init__(self, batch_size=16, sample_size=200, n_features=1,
@@ -183,7 +185,7 @@ class Statistician(nn.Module):
         optimizer.step()
 
         # output variational lower bound
-        return vlb.data[0]
+        return vlb.item()
 
     def save(self, optimizer, save_path):
         torch.save({
@@ -238,20 +240,20 @@ class Statistician(nn.Module):
 
             for subset_index in subset_indices:
                 # pull out subset, numpy indexing will make this much easier
-                ix = Variable(torch.LongTensor(subset_index).cuda())
+                ix = Variable(torch.LongTensor(subset_index).to(device))
                 subset = dataset.index_select(1, ix)
 
                 # calculate approximate posterior over subset
                 c_mean, c_logvar = self.statistic_network(subset, summarize=True)
                 kl = kl_diagnormal_diagnormal(c_mean_full, c_logvar_full, c_mean, c_logvar)
-                kl_divergences.append(kl.data[0])
+                kl_divergences.append(kl.item())
 
             # determine which sample we want to remove
             best_index = kl_divergences.index(min(kl_divergences))
 
             # determine which samples to keep
             to_keep = subset_indices[best_index]
-            to_keep = Variable(torch.LongTensor(to_keep).cuda())
+            to_keep = Variable(torch.LongTensor(to_keep).to(device))
 
             # keep only desired samples
             dataset = dataset.index_select(1, to_keep)
@@ -262,13 +264,13 @@ class Statistician(nn.Module):
     @staticmethod
     def reparameterize_gaussian(mean, logvar):
         std = torch.exp(0.5 * logvar)
-        eps = Variable(torch.randn(std.size()).cuda())
+        eps = Variable(torch.randn(std.size()).to(device))
         return mean + std * eps
 
     @staticmethod
     def weights_init(m):
         if isinstance(m, nn.Linear):
-            init.xavier_normal(m.weight.data, gain=init.calculate_gain('relu'))
-            init.constant(m.bias.data, 0)
+            init.xavier_normal_(m.weight.data, gain=init.calculate_gain('relu'))
+            init.constant_(m.bias.data, 0)
         elif isinstance(m, nn.BatchNorm1d):
             pass

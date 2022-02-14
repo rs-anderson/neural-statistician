@@ -3,6 +3,7 @@ import torch
 from torch import nn
 from torch.autograd import Variable
 
+device = torch.device('cpu')
 
 # Module for residual/skip connections
 class FCResBlock(nn.Module):
@@ -212,14 +213,18 @@ class InferenceNetwork(nn.Module):
             ez = self.fc_z(ez)
             ez = ez.view(self.batch_size, self.sample_size, self.hidden_dim)
         else:
-            ez = Variable(torch.zeros(ex.size()).cuda())
+            ez = Variable(torch.zeros(ex.size()).to(device))
 
         # embed c and expand for broadcast addition
         ec = self.fc_c(c)
         ec = ec.view(self.batch_size, 1, self.hidden_dim).expand_as(ex)
 
+
+        # import ipdb; ipdb.set_trace()
+
         # sum and reshape
         e = ex + ez + ec
+
         e = e.view(self.batch_size * self.sample_size, self.hidden_dim)
         e = self.nonlinearity(e)
 
@@ -281,7 +286,7 @@ class LatentDecoder(nn.Module):
             ez = self.fc_z(ez)
             ez = ez.view(self.batch_size, self.sample_size, self.hidden_dim)
         else:
-            ez = Variable(torch.zeros(self.batch_size, 1, self.hidden_dim).cuda())
+            ez = Variable(torch.zeros(self.batch_size, 1, self.hidden_dim).to(device))
 
         # embed c and expand for broadcast addition
         ec = self.fc_c(c)
@@ -333,7 +338,7 @@ class ObservationDecoder(nn.Module):
         self.nonlinearity = nonlinearity
 
         # shared learnable log variance
-        self.logvar = nn.Parameter(torch.randn(1, self.n_features).cuda())
+        self.logvar = nn.Parameter(torch.randn(1, self.n_features).to(device))
 
         # modules
         self.fc_zs = nn.Linear(self.n_stochastic * self.z_dim, self.hidden_dim)
