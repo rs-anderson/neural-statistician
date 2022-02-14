@@ -130,6 +130,7 @@ venv.bak/
 
 .vscode/
 mnist-data/
+output/
 
 # Spyder project settings
 .spyderproject

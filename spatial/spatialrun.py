@@ -1,10 +1,11 @@
 import argparse
 import os
 import time
+import torch
 
 from spatialdata import SpatialMNISTDataset
 from spatialmodel import Statistician
-from spatialplot import grid
+from spatialplot import grid, plot_loss
 from torch import optim
 from torch.autograd import Variable
 from torch.nn import functional as F
@@ -64,6 +65,9 @@ os.makedirs(os.path.join(args.output_dir, 'figures'), exist_ok=True)
 # experiment start time
 time_stamp = time.strftime("%d-%m-%Y-%H:%M:%S")
 
+print("Running on CPU")
+device = torch.device('cpu')
+
 
 def run(model, optimizer, loaders, datasets):
     train_dataset, test_dataset = datasets
@@ -76,29 +80,47 @@ def run(model, optimizer, loaders, datasets):
     # initial weighting for loss terms is (1 + alpha)
     alpha = 1
 
+    recon_losses = []
+    kls = []
+    vlbs = []
+
     # main training loop
     tbar = tqdm(range(args.epochs))
     for epoch in tbar:
 
         # train step
         model.train()
-        running_vlb = 0
-        for batch in train_loader:
-            inputs = Variable(batch[0].cuda())
-            vlb = model.step(inputs, alpha, optimizer, clip_gradients=args.clip_gradients)
-            running_vlb += vlb
 
+        running_vlb = 0
+        running_recon_loss = 0
+        running_kl= 0
+
+        for batch in train_loader:
+            inputs = Variable(batch[0].to(device))
+            vlb, recon_loss, kl = model.step(inputs, alpha, optimizer, clip_gradients=args.clip_gradients)
+            running_vlb += vlb
+            running_recon_loss += recon_loss
+            running_kl += kl
+
+        running_recon_loss /= (len(train_dataset) // args.batch_size)
+        running_kl /= (len(train_dataset) // args.batch_size)
         running_vlb /= (len(train_dataset) // args.batch_size)
+        import ipdb; ipdb.set_trace()
         s = "VLB: {:.3f}".format(running_vlb)
         tbar.set_description(s)
+
+        vlbs.append(running_vlb)
+        kls.append(running_kl)
+        recon_losses.append(running_recon_loss)
 
         # reduce weight
         alpha *= 0.5
 
         # show samples conditioned on test batch at intervals
+        # with torch.no_grad():
         model.eval()
         if (epoch + 1) % viz_interval == 0:
-            inputs = Variable(test_batch[0].cuda(), volatile=True)
+            inputs = Variable(test_batch[0].to(device), volatile=True)
             samples = model.sample_conditioned(inputs)
             filename = time_stamp + '-{}.png'.format(epoch + 1)
             save_path = os.path.join(args.output_dir, 'figures/' + filename)
@@ -114,7 +136,7 @@ def run(model, optimizer, loaders, datasets):
     model.eval()
     # summarize test batch at end of training
     n = 10  # number of datasets to summarize
-    inputs = Variable(test_batch[0].cuda(), volatile=True)
+    inputs = Variable(test_batch[0].to(device), volatile=True)
     print("Summarizing...")
     summaries = model.summarize_batch(inputs[:n], output_size=6)
     print("Summary complete!")
@@ -124,6 +146,11 @@ def run(model, optimizer, loaders, datasets):
     filename = time_stamp + '-summary.png'
     save_path = os.path.join(args.output_dir, 'figures/' + filename)
     grid(inputs, samples, summaries=summaries, save_path=save_path, ncols=n)
+
+    filename = time_stamp + '-losses.png'
+    save_path = os.path.join(args.output_dir, 'figures/' + filename)
+    plot_loss(save_path, vlb=vlbs, recon_loss=recon_losses, kl=kls)
+    
 
 
 def main():
@@ -156,7 +183,7 @@ def main():
         'print_vars': args.print_vars
     }
     model = Statistician(**model_kwargs)
-    model.cuda()
+    model.to(device)
     optimizer = optim.Adam(model.parameters(), lr=args.learning_rate)
 
     run(model, optimizer, loaders, datasets)
